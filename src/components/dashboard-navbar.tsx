@@ -10,12 +10,15 @@ import {
 } from "./ui/dropdown-menu";
 import { Button } from "./ui/button";
 import { UserCircle, Home, Plane, Search, Star, Settings } from "lucide-react";
-import { useRouter } from "next/navigation";
 import Image from "next/image";
 
 export default function DashboardNavbar() {
   const supabase = createClient();
-  const router = useRouter();
+
+  const handleSignOut = async () => {
+    await supabase.auth.signOut();
+    window.location.href = "/";
+  };
 
   return (
     <nav className="w-full border-b border-gray-200 bg-white py-4">
@@ -91,12 +94,7 @@ export default function DashboardNavbar() {
                   Subscription
                 </Link>
               </DropdownMenuItem>
-              <DropdownMenuItem
-                onClick={async () => {
-                  await supabase.auth.signOut();
-                  router.push("/");
-                }}
-              >
+              <DropdownMenuItem onClick={handleSignOut}>
                 Sign out
               </DropdownMenuItem>
             </DropdownMenuContent>
