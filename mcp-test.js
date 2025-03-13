@@ -1,7 +1,5 @@
 // MCP Test Script for Supabase
-// Make sure to run this with: node --experimental-modules mcp-test.js
-
-import { createClient } from '@supabase/supabase-js';
+const { createClient } = require('@supabase/supabase-js');
 
 async function testMCPSupabase() {
   try {
