@@ -42,7 +42,7 @@ export const signUpAction = async (formData: FormData) => {
     try {
       // Use service role client to bypass RLS
       const serviceRoleKey = process.env.SUPABASE_SERVICE_KEY;
-      const supabaseAdmin = createClient(
+      const supabaseAdmin = createClientWithKey(
         process.env.NEXT_PUBLIC_SUPABASE_URL!,
         serviceRoleKey!,
       );
