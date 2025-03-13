@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { Button } from "./ui/button";
 import { Upload, Loader2 } from "lucide-react";
-import { useRouter } from "next/navigation";
 import { supabase } from "../../supabase/supabase";
 
 export function UploadIdForm({ userId }: { userId: string }) {
@@ -11,7 +10,6 @@ export function UploadIdForm({ userId }: { userId: string }) {
   const [preview, setPreview] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const router = useRouter();
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
@@ -111,8 +109,8 @@ export function UploadIdForm({ userId }: { userId: string }) {
           throw new Error(updateError.message);
         }
 
-        // Redirect to dashboard
-        router.push("/dashboard");
+        // Redirect to dashboard using window.location
+        window.location.href = "/dashboard";
       } else {
         // ID verification failed
         setError(
