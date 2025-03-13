@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { createClient } from "../../supabase/client";
+import { createBrowserClient } from '@supabase/ssr';
+import type { SupabaseClient } from '@supabase/supabase-js';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -12,8 +13,20 @@ import { Button } from "./ui/button";
 import { UserCircle, Home, Plane, Search, Star, Settings } from "lucide-react";
 import Image from "next/image";
 
+let supabaseClient: SupabaseClient | undefined;
+
+export function getSupabaseClient() {
+  if (!supabaseClient) {
+    supabaseClient = createBrowserClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    );
+  }
+  return supabaseClient;
+}
+
 export default function DashboardNavbar() {
-  const supabase = createClient();
+  const supabase = getSupabaseClient();
 
   const handleSignOut = async () => {
     await supabase.auth.signOut();
