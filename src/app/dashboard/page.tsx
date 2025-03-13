@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { redirect } from "next/navigation";
 import { SubscriptionCheck } from "@/components/subscription-check";
+import { checkUserSubscription } from "@/app/actions";
 import {
   Card,
   CardContent,
@@ -31,8 +32,36 @@ export default async function Dashboard() {
     return redirect("/sign-in");
   }
 
+  // Check if user has verified their ID
+  const { data: userData, error } = await supabase
+    .from("users")
+    .select("id_verified")
+    .eq("user_id", user.id)
+    .single();
+
+  // Try alternate user ID check if needed
+  if (error || !userData) {
+    const { data: userDataById } = await supabase
+      .from("users")
+      .select("id_verified")
+      .eq("id", user.id)
+      .single();
+
+    if (!userDataById?.id_verified) {
+      return redirect("/verify-id");
+    }
+  } else if (!userData.id_verified) {
+    return redirect("/verify-id");
+  }
+
+  // Check subscription
+  const isSubscribed = await checkUserSubscription(user.id);
+  if (!isSubscribed) {
+    return redirect("/pricing");
+  }
+
   return (
-    <SubscriptionCheck>
+    <>
       <DashboardNavbar />
       <main className="w-full bg-gray-50 min-h-screen">
         <div className="container mx-auto px-4 py-8 flex flex-col gap-8">
@@ -219,6 +248,6 @@ export default async function Dashboard() {
           </section>
         </div>
       </main>
-    </SubscriptionCheck>
+    </>
   );
 }

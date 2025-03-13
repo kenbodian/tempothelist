@@ -1,13 +1,19 @@
+'use server';
+
 import { redirect } from "next/navigation";
 import { checkUserSubscription } from "@/app/actions";
 import { createClient } from "../../supabase/server";
+import { ReactNode } from "react";
 
 interface SubscriptionCheckProps {
-  children: React.ReactNode;
-  redirectTo?: string;
+  children: ReactNode;
 }
 
-export async function SubscriptionCheck({
+export function SubscriptionCheck({ children }: SubscriptionCheckProps) {
+  return <>{children}</>;
+}
+
+async function SubscriptionCheckWrapper({
   children,
   redirectTo = "/pricing",
 }: SubscriptionCheckProps) {
@@ -35,8 +41,8 @@ export async function SubscriptionCheck({
       .eq("id", user.id)
       .single();
 
-    if (userDataById) {
-      return userDataById;
+    if (userDataById?.id_verified === false) {
+      redirect("/verify-id");
     }
   }
 
@@ -51,5 +57,6 @@ export async function SubscriptionCheck({
     redirect(redirectTo);
   }
 
-  return <>{children}</>;
+  // If we reach here, the user is subscribed and can see the children
+  return children;
 }
