@@ -174,6 +174,14 @@ export function UploadIdForm({ userId }: { userId: string }) {
       if (!data) {
         throw new Error("Verification returned no data");
       }
+      
+      // Check if the data contains an error object (our new format returns 200 but with error details)
+      if (data.error) {
+        console.error("Verification processing error:", data.error);
+        setError(data.message || "ID verification failed due to processing error");
+        setDebugInfo(`Error details: ${JSON.stringify(data.error, null, 2)}`);
+        throw new Error(data.message || "ID verification processing error");
+      }
 
       // 4. Update the user's verification status based on the result
       if (data.isValid) {
