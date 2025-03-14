@@ -144,6 +144,26 @@ export function UploadIdForm({ userId }: { userId: string }) {
         .getPublicUrl(filePath);
 
       console.log("File uploaded successfully, URL:", urlData.publicUrl);
+      
+      // Convert the image to base64 for sending to the Edge Function
+      // This avoids URL access issues with OpenAI
+      console.log("Converting image to base64...");
+      
+      // Read the file as base64
+      const fileReader = new FileReader();
+      const base64Promise = new Promise<string>((resolve, reject) => {
+        fileReader.onload = () => {
+          const base64 = fileReader.result as string;
+          // Extract the base64 data part (remove the data:image/xyz;base64, prefix)
+          const base64Data = base64.split(',')[1];
+          resolve(base64Data);
+        };
+        fileReader.onerror = () => reject(new Error("Failed to read file as base64"));
+        fileReader.readAsDataURL(file);
+      });
+      
+      const base64Data = await base64Promise;
+      console.log("Image converted to base64 (length):", base64Data.length);
 
       // 3. Call the verification edge function
       console.log("Calling verification edge function...");
@@ -152,7 +172,9 @@ export function UploadIdForm({ userId }: { userId: string }) {
         {
           body: {
             userId,
-            imageUrl: urlData.publicUrl,
+            imageUrl: urlData.publicUrl, // Keep this for storage reference
+            imageBase64: base64Data, // Add base64 data
+            fileType: file.type, // Add the file type
           },
         },
       );

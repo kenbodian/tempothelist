@@ -13,13 +13,13 @@ serve(async (req) => {
   }
 
   try {
-    const { userId, imageUrl } = await req.json();
+    const { userId, imageUrl, imageBase64, fileType } = await req.json();
 
-    if (!userId || !imageUrl) {
+    if (!userId || (!imageUrl && !imageBase64)) {
       throw new Error("Missing required parameters");
     }
 
-    console.log("Analyzing image for ID verification:", imageUrl);
+    console.log("Analyzing image for ID verification:", imageBase64 ? "Base64 data provided" : imageUrl);
 
     // Call OpenAI GPT-4 Vision API to analyze the ID
     const openaiApiKey = Deno.env.get("OPENAI_API_KEY");
@@ -30,7 +30,7 @@ serve(async (req) => {
     console.log("Calling OpenAI API...");
     
     // Define models to try in order of preference
-    const modelsToTry = ["gpt-4-vision-preview", "gpt-4o"];
+    const modelsToTry = ["gpt-4o-mini", "gpt-4-vision-preview"];
     let lastError = null;
     let success = false;
     let data = null;
@@ -41,6 +41,27 @@ serve(async (req) => {
       
       try {
         console.log(`Attempting with model: ${model}`);
+        
+        // Prepare the image content - either URL or base64 data
+        let imageContent;
+        if (imageBase64) {
+          // If base64 data is provided, use that
+          const dataURI = `data:${fileType || 'image/jpeg'};base64,${imageBase64}`;
+          imageContent = {
+            type: "image_url",
+            image_url: {
+              url: dataURI,
+            },
+          };
+        } else {
+          // Fallback to URL if no base64 data
+          imageContent = {
+            type: "image_url",
+            image_url: {
+              url: imageUrl,
+            },
+          };
+        }
         
         const response = await fetch("https://api.openai.com/v1/chat/completions", {
           method: "POST",
@@ -58,12 +79,7 @@ serve(async (req) => {
                     type: "text",
                     text: 'Analyze this image and determine if it is a valid airline or pilot ID card. Look for: airline name, pilot name, position, employee ID number, expiration date, and official logos. Respond with a JSON object with the following structure: {"isValid": boolean, "confidence": number between 0-1, "message": string with explanation, "extractedInfo": {object with any extracted information}}. Only respond with the JSON object, nothing else.',
                   },
-                  {
-                    type: "image_url",
-                    image_url: {
-                      url: imageUrl,
-                    },
-                  },
+                  imageContent,
                 ],
               },
             ],
