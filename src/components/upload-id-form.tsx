@@ -1,14 +1,31 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "./ui/button";
 import { Upload, Loader2 } from "lucide-react";
 import { createClient } from "@supabase/supabase-js";
 
-// Create client outside component to prevent multiple instantiations
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
-const supabase = createClient(supabaseUrl, supabaseAnonKey);
+// Create client with proper persistence for browser environments
+const getSupabaseClient = () => {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  
+  if (!supabaseUrl || !supabaseAnonKey) {
+    console.error("Supabase environment variables are missing!");
+    return null;
+  }
+  
+  return createClient(supabaseUrl, supabaseAnonKey, {
+    auth: {
+      persistSession: true,
+      storageKey: 'supabase-auth',
+      autoRefreshToken: true,
+      detectSessionInUrl: true
+    }
+  });
+};
+
+const supabase = getSupabaseClient();
 
 export function UploadIdForm({ userId }: { userId: string }) {
   const [file, setFile] = useState<File | null>(null);
@@ -16,6 +33,39 @@ export function UploadIdForm({ userId }: { userId: string }) {
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [uploadProgress, setUploadProgress] = useState(0);
+  const [authReady, setAuthReady] = useState(false);
+  const [sessionStatus, setSessionStatus] = useState<string>("checking");
+
+  // Check authentication status on mount
+  useEffect(() => {
+    const checkSession = async () => {
+      if (!supabase) {
+        setSessionStatus("client-error");
+        return;
+      }
+      
+      try {
+        const { data, error } = await supabase.auth.getSession();
+        if (error) {
+          console.error("Error checking session:", error);
+          setSessionStatus("error");
+        } else if (data.session) {
+          console.log("User is authenticated:", data.session.user.id);
+          setSessionStatus("authenticated");
+        } else {
+          console.log("No active session found");
+          setSessionStatus("unauthenticated");
+        }
+      } catch (err) {
+        console.error("Failed to check session:", err);
+        setSessionStatus("exception");
+      } finally {
+        setAuthReady(true);
+      }
+    };
+
+    checkSession();
+  }, []);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
@@ -56,14 +106,24 @@ export function UploadIdForm({ userId }: { userId: string }) {
       return;
     }
 
+    if (!supabase) {
+      setError("Supabase client is not initialized properly");
+      return;
+    }
+
     setIsUploading(true);
     setError(null);
     setUploadProgress(0);
 
     try {
       // 0. Verify the user has a valid session
+      console.log("Checking authentication status...");
       const { data: sessionData } = await supabase.auth.getSession();
+      
+      console.log("Session check result:", sessionData);
+      
       if (!sessionData.session) {
+        console.error("No active session found during upload");
         throw new Error("You must be logged in to upload an ID");
       }
 
@@ -149,8 +209,29 @@ export function UploadIdForm({ userId }: { userId: string }) {
     }
   };
 
+  // If we're having auth issues, show them to the user
+  if (authReady && sessionStatus !== "authenticated" && sessionStatus !== "checking") {
+    return (
+      <div className="p-4 border border-red-300 bg-red-50 rounded-md">
+        <h3 className="text-red-600 font-semibold">Authentication Issue</h3>
+        <p className="mb-2">Unable to verify your login status: {sessionStatus}</p>
+        <p>Please try refreshing the page or logging in again.</p>
+        <Button 
+          className="mt-4"
+          onClick={() => window.location.href = "/login"}
+        >
+          Go to Login
+        </Button>
+      </div>
+    );
+  }
+
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
+      {sessionStatus === "checking" && (
+        <div className="text-blue-500 text-sm">Verifying authentication...</div>
+      )}
+      
       <div className="space-y-4">
         <div className="flex flex-col items-center justify-center space-y-2">
           <div
@@ -197,7 +278,7 @@ export function UploadIdForm({ userId }: { userId: string }) {
         <Button
           type="submit"
           className="w-full"
-          disabled={!file || isUploading}
+          disabled={!file || isUploading || sessionStatus !== "authenticated"}
         >
           {isUploading ? (
             <>
