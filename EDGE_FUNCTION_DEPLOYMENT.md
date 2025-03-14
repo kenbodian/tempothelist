@@ -1,3 +1,18 @@
+# Manual Edge Function Deployment Guide
+
+Since Docker Desktop is required for local Edge Function development and deployment (and doesn't appear to be installed), you'll need to deploy your updated functions manually through the Supabase dashboard. Here's how:
+
+## 1. Update the `verify-id` Edge Function
+
+1. Go to the [Supabase Dashboard](https://app.supabase.com/)
+2. Open your project
+3. Navigate to Edge Functions in the sidebar
+4. Find the "verify-id" function in the list
+5. Click on it to open the details
+6. Click "Edit" to open the editor
+7. Replace the entire function with the following code:
+
+```typescript
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
 const corsHeaders = {
@@ -127,3 +142,36 @@ serve(async (req) => {
     );
   }
 });
+```
+
+8. Click "Save" to update the function
+
+## 2. Check all environment variables
+
+Ensure all of these environment variables are set for your Edge Functions in the Supabase Dashboard:
+
+1. Go to Settings > API in your project
+2. Scroll down to "Project API keys" and copy the "service_role key" (this should be set as `SERVICE_ROLE_KEY`)
+3. Go to Settings > Functions
+4. Verify these variables are set:
+   - `OPENAI_API_KEY`: Your OpenAI API key
+   - `PROJECT_URL`: Your Supabase project URL (e.g., https://pmluvmynrbjszsaowvof.supabase.co)
+   - `SERVICE_ROLE_KEY`: The service role key you copied earlier
+   - `SUPABASE_URL`: Same as your PROJECT_URL
+   - `SUPABASE_SERVICE_ROLE_KEY`: Same as your SERVICE_ROLE_KEY
+
+## 3. Test the Upload ID Form
+
+1. Return to your app
+2. Navigate to the ID upload page
+3. Try uploading an ID image again
+4. The app should now provide more detailed debug information if any issues occur
+
+## Troubleshooting
+
+If you continue to have issues:
+
+1. Check the Edge Function logs in the Supabase Dashboard (Functions > Logs)
+2. Look for any specific error messages in the debug information shown in the upload form
+3. Ensure your OpenAI API key has access to the `gpt-4-vision-preview` model
+4. Check that the Supabase storage bucket `pilot-ids` exists and is properly configured 

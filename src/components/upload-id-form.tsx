@@ -13,6 +13,7 @@ export function UploadIdForm({ userId }: { userId: string }) {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [authReady, setAuthReady] = useState(false);
   const [sessionStatus, setSessionStatus] = useState<string>("checking");
+  const [debugInfo, setDebugInfo] = useState<string | null>(null);
 
   // Get Supabase client the same way the rest of your app does
   const supabase = createBrowserClient(
@@ -104,6 +105,7 @@ export function UploadIdForm({ userId }: { userId: string }) {
 
     setIsUploading(true);
     setError(null);
+    setDebugInfo(null);
     setUploadProgress(0);
 
     try {
@@ -145,7 +147,7 @@ export function UploadIdForm({ userId }: { userId: string }) {
 
       // 3. Call the verification edge function
       console.log("Calling verification edge function...");
-      const { data, error: verifyError } = await supabase.functions.invoke(
+      const verifyResult = await supabase.functions.invoke(
         "verify-id",
         {
           body: {
@@ -154,32 +156,48 @@ export function UploadIdForm({ userId }: { userId: string }) {
           },
         },
       );
-
-      if (verifyError) {
-        console.error("Verification error:", verifyError);
-        throw new Error(`Verification failed: ${verifyError.message}`);
+      
+      // Log the full response for debugging
+      console.log("Edge function raw response:", verifyResult);
+      
+      if (verifyResult.error) {
+        console.error("Verification error:", verifyResult.error);
+        
+        // Store detailed debug info
+        setDebugInfo(JSON.stringify(verifyResult, null, 2));
+        
+        throw new Error(`Verification failed: ${verifyResult.error.message || verifyResult.error.name || 'Unknown error'}`);
+      }
+      
+      const data = verifyResult.data;
+      
+      if (!data) {
+        throw new Error("Verification returned no data");
       }
 
       // 4. Update the user's verification status based on the result
       if (data.isValid) {
         console.log("ID verified successfully, updating profile record...");
         // Update profile record with verification status using admin client
-        const { data: adminData, error: adminError } =
-          await supabase.functions.invoke(
-            "update-user-verification",
-            {
-              body: {
-                userId,
-                id_verified: true,
-                id_verification_date: new Date().toISOString(),
-                id_image_path: filePath,
-              },
+        const updateResult = await supabase.functions.invoke(
+          "update-user-verification",
+          {
+            body: {
+              userId,
+              id_verified: true,
+              id_verification_date: new Date().toISOString(),
+              id_image_path: filePath,
             },
-          );
+          },
+        );
+        
+        // Log the full response for debugging
+        console.log("Update function raw response:", updateResult);
 
-        if (adminError) {
-          console.error("Update error:", adminError);
-          throw new Error(`Update failed: ${adminError.message}`);
+        if (updateResult.error) {
+          console.error("Update error:", updateResult.error);
+          setDebugInfo(JSON.stringify(updateResult, null, 2));
+          throw new Error(`Update failed: ${updateResult.error.message || updateResult.error.name || 'Unknown error'}`);
         }
 
         console.log("Profile record updated successfully, redirecting...");
@@ -189,8 +207,11 @@ export function UploadIdForm({ userId }: { userId: string }) {
         // ID verification failed
         setError(
           data.message ||
-            "ID verification failed. Please try again with a clearer image.",
+            "ID verification failed. Please try again with a clearer image."
         );
+        if (data.extractedInfo) {
+          setDebugInfo(`Extracted info: ${JSON.stringify(data.extractedInfo, null, 2)}`);
+        }
       }
     } catch (err: any) {
       console.error("Overall error:", err);
@@ -280,6 +301,13 @@ export function UploadIdForm({ userId }: { userId: string }) {
         {error && (
           <div className="text-red-500 text-sm border-l-2 border-red-500 pl-3">
             {error}
+          </div>
+        )}
+        
+        {debugInfo && (
+          <div className="bg-gray-100 p-3 rounded text-xs overflow-auto max-h-40">
+            <h4 className="font-semibold mb-1">Debug Information:</h4>
+            <pre>{debugInfo}</pre>
           </div>
         )}
 
