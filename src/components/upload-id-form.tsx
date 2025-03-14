@@ -3,29 +3,7 @@
 import { useState, useEffect } from "react";
 import { Button } from "./ui/button";
 import { Upload, Loader2 } from "lucide-react";
-import { createClient } from "@supabase/supabase-js";
-
-// Create client with proper persistence for browser environments
-const getSupabaseClient = () => {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  
-  if (!supabaseUrl || !supabaseAnonKey) {
-    console.error("Supabase environment variables are missing!");
-    return null;
-  }
-  
-  return createClient(supabaseUrl, supabaseAnonKey, {
-    auth: {
-      persistSession: true,
-      storageKey: 'supabase-auth',
-      autoRefreshToken: true,
-      detectSessionInUrl: true
-    }
-  });
-};
-
-const supabase = getSupabaseClient();
+import { createBrowserClient } from "@supabase/ssr";
 
 export function UploadIdForm({ userId }: { userId: string }) {
   const [file, setFile] = useState<File | null>(null);
@@ -36,16 +14,19 @@ export function UploadIdForm({ userId }: { userId: string }) {
   const [authReady, setAuthReady] = useState(false);
   const [sessionStatus, setSessionStatus] = useState<string>("checking");
 
+  // Get Supabase client the same way the rest of your app does
+  const supabase = createBrowserClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  );
+
   // Check authentication status on mount
   useEffect(() => {
     const checkSession = async () => {
-      if (!supabase) {
-        setSessionStatus("client-error");
-        return;
-      }
-      
       try {
         const { data, error } = await supabase.auth.getSession();
+        console.log("Auth check response:", data, error);
+        
         if (error) {
           console.error("Error checking session:", error);
           setSessionStatus("error");
@@ -65,7 +46,22 @@ export function UploadIdForm({ userId }: { userId: string }) {
     };
 
     checkSession();
-  }, []);
+
+    // Set up auth state change listener
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      console.log("Auth state changed:", event, session?.user?.id);
+      if (session) {
+        setSessionStatus("authenticated");
+      } else if (event === 'SIGNED_OUT') {
+        setSessionStatus("unauthenticated");
+      }
+    });
+
+    // Clean up subscription
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, [supabase]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
@@ -103,11 +99,6 @@ export function UploadIdForm({ userId }: { userId: string }) {
     e.preventDefault();
     if (!file) {
       setError("Please select a file to upload");
-      return;
-    }
-
-    if (!supabase) {
-      setError("Supabase client is not initialized properly");
       return;
     }
 
@@ -209,6 +200,13 @@ export function UploadIdForm({ userId }: { userId: string }) {
     }
   };
 
+  // Debugging button to trigger manual auth check
+  const checkAuthStatus = async () => {
+    const { data } = await supabase.auth.getSession();
+    console.log("Manual auth check:", data);
+    alert(`Auth status: ${data.session ? "Logged in" : "Not logged in"}`);
+  };
+
   // If we're having auth issues, show them to the user
   if (authReady && sessionStatus !== "authenticated" && sessionStatus !== "checking") {
     return (
@@ -216,12 +214,22 @@ export function UploadIdForm({ userId }: { userId: string }) {
         <h3 className="text-red-600 font-semibold">Authentication Issue</h3>
         <p className="mb-2">Unable to verify your login status: {sessionStatus}</p>
         <p>Please try refreshing the page or logging in again.</p>
-        <Button 
-          className="mt-4"
-          onClick={() => window.location.href = "/login"}
-        >
-          Go to Login
-        </Button>
+        
+        <div className="mt-4 flex space-x-4">
+          <Button 
+            variant="default"
+            onClick={() => window.location.href = "/sign-in"}
+          >
+            Go to Login
+          </Button>
+          
+          <Button 
+            variant="outline"
+            onClick={checkAuthStatus}
+          >
+            Check Auth Status
+          </Button>
+        </div>
       </div>
     );
   }
