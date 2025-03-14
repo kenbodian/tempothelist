@@ -19,6 +19,8 @@ serve(async (req) => {
       throw new Error("Missing required parameters");
     }
 
+    console.log("Analyzing image for ID verification:", imageUrl);
+
     // Call OpenAI GPT-4 Vision API to analyze the ID
     const openaiApiKey = Deno.env.get("OPENAI_API_KEY");
     if (!openaiApiKey) {
@@ -32,7 +34,7 @@ serve(async (req) => {
         Authorization: `Bearer ${openaiApiKey}`,
       },
       body: JSON.stringify({
-        model: "gpt-4-vision-preview",
+        model: "gpt-4o",
         messages: [
           {
             role: "user",
@@ -76,6 +78,8 @@ serve(async (req) => {
       }
     }
 
+    console.log("Analysis result:", parsedResult);
+    
     return new Response(JSON.stringify(parsedResult), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });

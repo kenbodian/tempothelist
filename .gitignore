@@ -32,6 +32,10 @@ yarn-error.log*
 # local env files
 .env*.local
 .env
+.env.local
+.env.development
+.env.test
+.env.production
 
 # vercel
 .vercel
@@ -41,12 +45,30 @@ yarn-error.log*
 next-env.d.ts
 
 # Tempo
-
 node_modules/
 **/tempobook/dynamic/
 **/tempobook/storyboards/
 
 # I want to ignore the git folder
 .git
-
 .github/
+
+# Sensitive data and credentials
+*.key
+*.pem
+*.p12
+*.pfx
+**/secrets/
+*credentials*
+*api-key*
+*apikey*
+*secret*
+*password*
+.npmrc
+.env.development.local
+.env.test.local
+.env.production.local
+.env.local
+
+# Deploy scripts with credentials (use templates instead)
+*-creds.sh

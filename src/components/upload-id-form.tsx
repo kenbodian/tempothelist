@@ -3,13 +3,19 @@
 import { useState } from "react";
 import { Button } from "./ui/button";
 import { Upload, Loader2 } from "lucide-react";
-import { supabase } from "../../supabase/supabase";
+import { createClient } from "@supabase/supabase-js";
+
+// Create client outside component to prevent multiple instantiations
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
+const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 export function UploadIdForm({ userId }: { userId: string }) {
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [uploadProgress, setUploadProgress] = useState(0);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
@@ -52,29 +58,44 @@ export function UploadIdForm({ userId }: { userId: string }) {
 
     setIsUploading(true);
     setError(null);
+    setUploadProgress(0);
 
     try {
+      // 0. Verify the user has a valid session
+      const { data: sessionData } = await supabase.auth.getSession();
+      if (!sessionData.session) {
+        throw new Error("You must be logged in to upload an ID");
+      }
+
       // 1. Upload the file to Supabase Storage
+      console.log("Uploading file to bucket 'pilot-ids'...");
       const fileExt = file.name.split(".").pop();
       const fileName = `${userId}-${Date.now()}.${fileExt}`;
-      const filePath = `pilot-ids/${fileName}`;
+      const filePath = `${fileName}`; // No subfolder for simplicity
 
-      const { error: uploadError } = await supabase.storage
-        .from("id-verifications")
-        .upload(filePath, file);
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from("pilot-ids")
+        .upload(filePath, file, {
+          cacheControl: "3600",
+          upsert: false,
+        });
 
       if (uploadError) {
-        throw new Error(uploadError.message);
+        console.error("Upload error:", uploadError);
+        throw new Error(`Upload failed: ${uploadError.message}`);
       }
 
       // 2. Get the public URL for the uploaded file
       const { data: urlData } = supabase.storage
-        .from("id-verifications")
+        .from("pilot-ids")
         .getPublicUrl(filePath);
 
+      console.log("File uploaded successfully, URL:", urlData.publicUrl);
+
       // 3. Call the verification edge function
+      console.log("Calling verification edge function...");
       const { data, error: verifyError } = await supabase.functions.invoke(
-        "supabase-functions-verify-id",
+        "verify-id",
         {
           body: {
             userId,
@@ -84,15 +105,17 @@ export function UploadIdForm({ userId }: { userId: string }) {
       );
 
       if (verifyError) {
-        throw new Error(verifyError.message);
+        console.error("Verification error:", verifyError);
+        throw new Error(`Verification failed: ${verifyError.message}`);
       }
 
       // 4. Update the user's verification status based on the result
       if (data.isValid) {
-        // Update user record with verification status using admin client
+        console.log("ID verified successfully, updating profile record...");
+        // Update profile record with verification status using admin client
         const { data: adminData, error: adminError } =
           await supabase.functions.invoke(
-            "supabase-functions-update-user-verification",
+            "update-user-verification",
             {
               body: {
                 userId,
@@ -103,12 +126,12 @@ export function UploadIdForm({ userId }: { userId: string }) {
             },
           );
 
-        const updateError = adminError;
-
-        if (updateError) {
-          throw new Error(updateError.message);
+        if (adminError) {
+          console.error("Update error:", adminError);
+          throw new Error(`Update failed: ${adminError.message}`);
         }
 
+        console.log("Profile record updated successfully, redirecting...");
         // Redirect to dashboard using window.location
         window.location.href = "/dashboard";
       } else {
@@ -119,6 +142,7 @@ export function UploadIdForm({ userId }: { userId: string }) {
         );
       }
     } catch (err: any) {
+      console.error("Overall error:", err);
       setError(err.message || "An error occurred during verification");
     } finally {
       setIsUploading(false);

@@ -21,9 +21,11 @@ serve(async (req) => {
       throw new Error("Missing required parameters");
     }
 
+    console.log("Updating user verification status for user:", userId);
+
     // Create Supabase client with service role key to bypass RLS
-    const supabaseUrl = Deno.env.get("SUPABASE_URL");
-    const supabaseServiceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    const supabaseUrl = Deno.env.get("PROJECT_URL");
+    const supabaseServiceRoleKey = Deno.env.get("SERVICE_ROLE_KEY");
 
     if (!supabaseUrl || !supabaseServiceRoleKey) {
       throw new Error("Missing Supabase credentials");
@@ -31,9 +33,9 @@ serve(async (req) => {
 
     const supabaseAdmin = createClient(supabaseUrl, supabaseServiceRoleKey);
 
-    // Update user verification status
+    // Update user verification status in the profiles table, not users table
     const { error } = await supabaseAdmin
-      .from("users")
+      .from("profiles")
       .update({
         id_verified,
         id_verification_date,
@@ -42,9 +44,12 @@ serve(async (req) => {
       .eq("id", userId);
 
     if (error) {
+      console.error("Database update error:", error);
       throw error;
     }
 
+    console.log("User verification status updated successfully");
+    
     return new Response(JSON.stringify({ success: true }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
